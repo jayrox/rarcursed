@@ -19,7 +19,7 @@ go build
 
 # Run
 ```
-rdc -dir /path/to/rars
+rcd -dir /path/to/rars
 ```
 
 # Command-line Variables
