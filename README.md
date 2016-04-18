@@ -25,7 +25,8 @@ rcd -dir /path/to/rars
 # Command-line Variables
 ```
 -d    - debug output
--dir  - directory to scan, extract, cleanup
+-dir  - directory to scan, extract, cleanup - default cwd
+-tar  - directory to extract to - default cwd
 -min  - minimum file size to keep
 -test - run process but don't delete files
 -rem  - extra file types to clean up (*.nfo, *.sfv)
