@@ -7,7 +7,7 @@ import (
 	"hash/crc32"
 	"io/ioutil"
 	"log"
-    "math"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +18,7 @@ import (
 var (
 	flagdebug   = flag.Bool("d", true, "show debug output")
 	flagdir     = flag.String("dir", "cwd", "directory to scan. default is current working directory (cwd)")
+	flagtarget  = flag.String("tar", "cwd", "directory to extract to. default is current working directory (cwd)")
 	flagefr     = flag.String("rem", "", "extra files to remove (i.e. *.nfo, *.sfv), default does not remove extras")
 	flagminsize = flag.Int64("min", 200000000, "minimum file size to include in scan. default is 200MB") // 3MB
 	flagtest    = flag.Bool("test", false, "tests process, doesn't delete files.")
@@ -34,12 +35,11 @@ func main() {
 	// Print the logo :P
 	printLogo()
 
-	// Root folder to scan
-	fpAbs, _ := filepath.Abs(flagString(flagdir))
-	rf.Dir = fpAbs
-
 	rf.Min = flagInt(flagminsize)
 
+	// Root folder to scan
+	fpSAbs, _ := filepath.Abs(flagString(flagdir))
+	rf.Dir = fpSAbs
 	if flagString(flagdir) == "cwd" {
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
@@ -47,6 +47,18 @@ func main() {
 		}
 		rf.Dir = dir
 	}
+
+	// Root folder to extract to
+	fpTAbs, _ := filepath.Abs(flagString(flagtarget))
+	rf.Target = fpTAbs
+	if flagString(flagtarget) == "cwd" {
+		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			log.Fatal(err)
+		}
+		rf.Target = dir
+	}
+
 	if flagBool(flagtest) {
 		fmt.Println("**Test mode enabled!")
 	}
@@ -99,7 +111,7 @@ func folderWalk(path string) (i int64) {
 					continue
 				}
 
-				ok = extract(path, "./test/e/")
+				ok = extract(path, rf.Target)
 
 				if ok == false {
 					printDebug("Extract failed %s\n", "")
@@ -146,9 +158,10 @@ func testarchive(path string) (ok bool) {
 			ok = false
 		}
 	}
-	if bytes.Contains(out, []byte("CRC")) {
+	fmt.Println(string(out))
+	if bytes.Contains(out, []byte("CRC")) && !bytes.Contains(out, []byte("Everything is Ok")) {
 		fmt.Println("ERROR: CRC Failed")
-        fmt.Println(path)
+		fmt.Println(path)
 		ok = false
 	}
 
@@ -163,7 +176,7 @@ func testcrc32(path string) (ok bool) {
 	d := filepath.Dir(path)
 	var err = filepath.Walk(d, func(fpath string, f os.FileInfo, _ error) error {
 		if filepath.Ext(fpath) == ".sfv" {
-            printDebug("Found sfv\n%s\n", fpath)
+			printDebug("Found sfv\n%s\n", fpath)
 
 			dat, err := ioutil.ReadFile(fpath)
 			if err != nil {
@@ -171,17 +184,17 @@ func testcrc32(path string) (ok bool) {
 			}
 			temp := strings.Split(string(dat), "\n")
 			for i, x := range temp {
-                if math.Remainder(float64(i), 25) == 0 {
-                    fmt.Println("")
-                }
-                if len(x) < 1 {
-                    continue
-                } 
-                if string(x[0]) == ";" {
-                    continue
-                }
-                
-                result := strings.Fields(x)
+				if math.Remainder(float64(i), 25) == 0 {
+					fmt.Println("")
+				}
+				if len(x) < 1 {
+					continue
+				}
+				if string(x[0]) == ";" {
+					continue
+				}
+
+				result := strings.Fields(x)
 				if len(result) > 0 {
 					rcrc32 := result[len(result)-1]
 					h, err := getHash(d + "\\" + result[0])
@@ -191,8 +204,8 @@ func testcrc32(path string) (ok bool) {
 					s := strconv.FormatInt(int64(h), 16)
 					s = strings.TrimLeft(s, "0")
 					rcrc32 = strings.TrimLeft(rcrc32, "0")
-                    s = strings.ToUpper(s)
-                    rcrc32 = strings.ToUpper(rcrc32)
+					s = strings.ToUpper(s)
+					rcrc32 = strings.ToUpper(rcrc32)
 					if s != rcrc32 {
 						ok = false
 						printDebug("CRC does not match:\n%s\n%s - %s\n", result[0], rcrc32, s)
@@ -225,8 +238,8 @@ func getHash(filename string) (uint32, error) {
 }
 
 func extract(path, destpath string) (ok bool) {
-	d := filepath.Dir(path)
 	ok = true
+	d := filepath.Dir(destpath)
 	printDebug("Extracting: %s\nDestination: %s\n", path, d)
 	cmd := exec.Command("7z", "x", path, "-o"+d, "-y")
 	if err := cmd.Run(); err != nil {
@@ -323,6 +336,7 @@ func printDebug(format string, vars ...interface{}) {
 // Hold flag data
 type rcdFlags struct {
 	Dir                string
+	Target             string
 	Debug              bool
 	ExtraFilesToRemove string
 	Min                int64
@@ -330,11 +344,11 @@ type rcdFlags struct {
 
 // Print the logo, obviously
 func printLogo() {
-    fmt.Println("██████╗  ██████╗██████╗") 
-    fmt.Println("██╔══██╗██╔════╝██╔══██╗")
-    fmt.Println("██████╔╝██║     ██║  ██║")
-    fmt.Println("██╔══██╗██║     ██║  ██║")
-    fmt.Println("██║  ██║╚██████╗██████╔╝")
-    fmt.Println("╚═╝  ╚═╝ ╚═════╝╚═════╝ rarcursed")
-    fmt.Println("")
+	fmt.Println("██████╗  ██████╗██████╗")
+	fmt.Println("██╔══██╗██╔════╝██╔══██╗")
+	fmt.Println("██████╔╝██║     ██║  ██║")
+	fmt.Println("██╔══██╗██║     ██║  ██║")
+	fmt.Println("██║  ██║╚██████╗██████╔╝")
+	fmt.Println("╚═╝  ╚═╝ ╚═════╝╚═════╝ rarcursed")
+	fmt.Println("")
 }
